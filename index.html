@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+
+<meta charset="UTF-8">
+<title>Breakout box in a web worker with different codecs</title>
+<style>
+  button {
+    background-color: #555555;
+    border: 2px;
+    border-radius: 2px;
+    color: white;
+    padding: 15px 32px;
+    width: 1280px;
+    text-align: center;
+    display: block;
+    font-size: 16px;
+  }
+
+  #pause {
+    background: crimson;
+    color: white;
+  }
+</style>
+
+<button id="record" width=1280 onclick="onButtonClicked()">Record</button>
+<button id="pause" width=1280 onclick="pauseOrResume()" style="visibility: hidden;">Pause</button>
+
+<div id="mimetypecontainer">
+  <fieldset>
+    <legend>Select mime type:</legend>
+  
+    <div>
+      <input type="radio" id="mp4" name="mimetype" value="video/mp4;codecs=avc1,mp4a.40.2" checked />
+      <label for="mp4">video/mp4;codecs=avc1,mp4a.40.2</label>
+    </div>
+  
+    <div>
+      <input type="radio" id="webm" name="mimetype" value="video/webm;codecs=vp9,opus" />
+      <label for="webm">video/webm;codecs=vp9,opus</label>
+    </div>
+  
+  </fieldset>
+  
+</div>
+<video id ="src" autoplay muted width=1280 height=720></video>
+<footer>Adapted from https://w3c.github.io/webcodecs/samples/capture-to-file/capture-to-file.html</footer>
+<script>
+    let video = document.getElementById('src');
+    let button = document.getElementById('record');
+    let pauseButton = document.getElementById('pause');
+    let mimeTypeContainer = document.getElementById('mimetypecontainer');
+    let mp4Radio = document.getElementById('mp4');
+    let webmRadio = document.getElementById('webm');
+    let stream = null;
+    let videoTrack = null;
+    let audioTrack = null;
+    let mediaRecorder = null;
+    let chunks = null;
+
+    async function startRecording() {
+      console.assert(button.innerText == 'Record');
+      button.disabled = true;
+      mimeTypeContainer.style.visibility = 'hidden';
+      pauseButton.style.visibility = 'visible';
+
+      videoTrack = stream.getVideoTracks()[0];
+      audioTrack = stream.getAudioTracks()[0];
+
+      const recordStream = new MediaStream([audioTrack, videoTrack]);
+      chunks = [];
+      mediaRecorder = new MediaRecorder(recordStream, {mimeType: getMimeType()});
+      mediaRecorder.ondataavailable = (e) => {
+        chunks.push(e.data);
+      };
+      mediaRecorder.start();
+
+      button.innerText = 'Stop';
+      button.disabled = false;
+    }
+
+    function stopRecording() {
+      console.assert(button.innerText == 'Stop');
+
+      button.innerText = 'Record';
+      mimeTypeContainer.style.visibility = 'visible';
+      pauseButton.style.visibility = 'hidden';
+      mediaRecorder.stop();
+      setTimeout(() => {
+          const link = document.createElement('a'); 
+          const blob = new Blob(chunks, {type: getMimeType()});
+          const blobUrl = URL.createObjectURL(blob);
+          link.href = blobUrl;
+          link.download = mp4Radio.checked ? 'test.mp4' : 'test.webm';
+          link.innerHTML = "Click here to download";
+          mimeTypeContainer.appendChild(link);
+      }, 500);
+    }
+
+    async function onButtonClicked() {
+      switch(button.innerText) {
+        case 'Record':
+          startRecording();
+          break;
+        case 'Stop':
+          stopRecording();
+          break;
+      }
+    };
+
+    function pauseOrResume() {
+      if (pauseButton.innerText == 'Pause') {
+        mediaRecorder.pause();
+        pauseButton.innerText = 'Resume';
+      } else {
+        mediaRecorder.resume();
+        pauseButton.innerText = 'Pause';
+      }
+    }
+
+    function getMimeType() {
+      if (mp4Radio.checked) {
+        return mp4Radio.value;
+      } else {
+        return webmRadio.value;
+      }
+    }
+
+    async function main() {
+      let constraints = {
+        audio: true,
+        video: {width: 1920, height: 1080, frameRate: 30}
+      };
+      stream = await window.navigator.mediaDevices.getUserMedia(constraints);
+      let video = document.getElementById('src');
+      video.srcObject = stream;
+    }
+
+    document.body.onload = main;
+</script>
+
